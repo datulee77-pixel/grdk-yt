@@ -343,7 +343,7 @@ function GoalCard() {
             The reason you create
           </p>
           <p className="text-2xl md:text-4xl font-bold tracking-tight text-white drop-shadow-lg">
-            Tynachoebi Garadokidan
+            melexebi Garadokidan
           </p>
         </div>
       </div>
