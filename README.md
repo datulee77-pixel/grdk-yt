@@ -1,56 +1,90 @@
-# YouTube Video Generator & Uploader
+# StudioFlow YouTube Uploader
 
-A production-ready Next.js 14 web application that generates Full HD videos from an
-audio track + a static image, then uploads them directly to YouTube via the
-YouTube Data API v3.
+StudioFlow turns an audio track and cover image into a 1080p video and uploads
+the result to YouTube. The web application and FFmpeg renderer run together on
+Render. Source files upload directly from the browser to private Supabase
+Storage, so they do not pass through the Render request proxy.
 
-## Features
+## Architecture
 
-- 🔐 Google OAuth 2.0 authentication (NextAuth.js v5, JWT sessions)
-- 🎬 FFmpeg video generation (1920×1080, H.264, AAC, YouTube-standard settings)
-- 📤 Direct upload to YouTube with custom metadata
-- 🎨 Dark-theme responsive UI (Tailwind CSS)
-- 🔒 Secure media serving with directory-traversal protection
-- ⚡ No database required — sessions live in encrypted httpOnly cookies
+1. A signed-in user selects an audio file and image.
+2. The app issues short-lived, user-scoped Supabase upload tickets.
+3. The browser uploads both source files directly to the private
+   `temp-videos` bucket.
+4. The Render service downloads the inputs, renders with FFmpeg, and uploads the
+   resulting MP4 to the same private bucket.
+5. After YouTube accepts the video, the temporary MP4 is deleted.
 
-## Temporary-video storage
+## Required services
 
-Rendered videos are stored in the private Supabase Storage bucket named
-`temp-videos`. Each object is assigned to an opaque, user-specific path and is
-served only through a short-lived signed URL. Once YouTube confirms the upload,
-the object is queued for deletion after one minute.
+- A Render account
+- A Supabase project
+- A Google Cloud project with YouTube Data API v3 enabled
 
-Set these server-only environment variables locally and in Vercel:
+## Supabase setup
 
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_TEMP_VIDEOS_BUCKET=temp-videos
-CRON_SECRET=a-long-random-secret
+Create a private Storage bucket named `temp-videos`. In the bucket settings,
+allow these MIME types:
+
+- `audio/mpeg`
+- `audio/mp3`
+- `audio/wav`
+- `audio/x-wav`
+- `audio/m4a`
+- `audio/x-m4a`
+- `audio/mp4`
+- `audio/aac`
+- `image/jpeg`
+- `image/jpg`
+- `image/png`
+- `image/webp`
+- `video/mp4`
+
+Set the bucket file-size limit high enough for the source files you expect.
+The service role key stays server-only. The anon key is intentionally exposed
+to the browser, but it can only use the short-lived signed upload tokens issued
+by the authenticated application.
+
+## Google OAuth setup
+
+In Google Cloud:
+
+1. Enable **YouTube Data API v3**.
+2. Create an OAuth 2.0 Client ID with application type **Web application**.
+3. After Render assigns the service URL, add:
+
+   `https://YOUR-SERVICE.onrender.com/api/auth/callback/google`
+
+4. If you attach a custom domain, add its equivalent callback URL too.
+
+## Deploy to Render
+
+1. Push this repository to GitHub.
+2. In Render, choose **New > Blueprint** and connect the repository.
+3. Render reads `render.yaml` and asks for the secret values marked
+   `sync: false`.
+4. Enter:
+
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+
+5. Deploy, copy the assigned Render URL, and add the Google callback described
+   above.
+6. Redeploy after changing the Google OAuth configuration.
+
+Use at least the Render Starter plan. FFmpeg rendering is CPU- and
+memory-intensive; longer videos may require a larger instance.
+
+## Local development
+
+Copy `.env.example` to `.env.local`, fill in the values, then run:
+
+```bash
+npm install
+npm run dev
 ```
 
-`vercel.json` invokes `/api/cleanup` every minute. The cleanup endpoint requires
-the configured `CRON_SECRET` as a bearer token.
-
-## Tech Stack
-
-- Next.js 14 (App Router) + TypeScript (strict)
-- React 18
-- NextAuth.js v5 (Google OAuth)
-- fluent-ffmpeg + @ffmpeg-installer/ffmpeg
-- googleapis (YouTube Data API v3)
-- Tailwind CSS + Lucide React
-
-## Setup
-
-### 1. Create a Google Cloud Project
-
-1. Go to https://console.cloud.google.com/
-2. Create a new project
-3. Enable **YouTube Data API v3** (APIs & Services → Library)
-
-### 2. Create OAuth Credentials
-
-1. APIs & Services → **Credentials**
-2. Create **OAuth 2.0 Client ID** → Application type: **Web application**
-3. Add an authorized redirect URI:
+Open `http://localhost:3000`.

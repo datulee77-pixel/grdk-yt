@@ -3,7 +3,7 @@ import { Readable } from "stream";
 import { google } from "googleapis";
 import { auth } from "@/lib/auth";
 import type { VideoMetadata } from "@/types";
-import { ensureTemporaryVideoBucket, getTemporaryVideoBucket, getUserStoragePrefix, queueVideoForDeletion } from "@/lib/supabase";
+import { ensureTemporaryVideoBucket, getTemporaryVideoBucket, getUserStoragePrefix, removeTemporaryFiles } from "@/lib/supabase";
 
 // YouTube uploads can take a while
 export const maxDuration = 300;
@@ -94,11 +94,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Queue Supabase cleanup for one minute after a confirmed YouTube upload.
+    // The YouTube API has consumed the stream, so the rendered object can be removed.
     try {
-      await queueVideoForDeletion(videoPath);
+      await removeTemporaryFiles([videoPath]);
     } catch {
-      // Preserve the temporary video if queueing fails; it can be removed manually.
+      // Preserve the temporary video if cleanup fails; it can be removed manually.
     }
 
     return NextResponse.json({

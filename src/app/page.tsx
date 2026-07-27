@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSession, signIn } from "next-auth/react";
+import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -48,14 +49,44 @@ export default function HomePage() {
     if (!audioFile || !imageFile)
       return setError("Please select both an audio file and an image.");
     setBusy(true);
-    setBusyMessage("Generating video...");
+    setBusyMessage("Uploading source files...");
     try {
-      const formData = new FormData();
-      formData.append("audio", audioFile);
-      formData.append("image", imageFile);
+      const uploadSource = async (file: File, kind: "audio" | "image") => {
+        const ticketResponse = await fetch("/api/upload-ticket", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind,
+            contentType: file.type,
+            size: file.size,
+          }),
+        });
+        const ticket = await ticketResponse.json();
+        if (!ticketResponse.ok) {
+          throw new Error(ticket.error || "Could not prepare source upload.");
+        }
+        if (!ticket.supabaseUrl || !ticket.supabaseAnonKey) {
+          throw new Error("Supabase browser uploads are not configured.");
+        }
+        const supabase = createClient(ticket.supabaseUrl, ticket.supabaseAnonKey);
+        const { error: uploadError } = await supabase.storage
+          .from(ticket.bucket)
+          .uploadToSignedUrl(ticket.path, ticket.token, file, {
+            contentType: file.type,
+          });
+        if (uploadError) throw uploadError;
+        return ticket.path as string;
+      };
+
+      const [audioPath, imagePath] = await Promise.all([
+        uploadSource(audioFile, "audio"),
+        uploadSource(imageFile, "image"),
+      ]);
+      setBusyMessage("Generating video on Render...");
       const res = await fetch("/api/generate", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audioPath, imagePath }),
       });
       if (!res.ok) {
         const data = (await res.json()) as ApiError;
@@ -159,7 +190,7 @@ export default function HomePage() {
               The reason you create
             </p>
             <p className="text-2xl md:text-4xl font-bold tracking-tight text-white drop-shadow-lg">
-              Tynachoebi Garadokidan
+              Melexebi Garadokidan
             </p>
           </div>
         </section>
