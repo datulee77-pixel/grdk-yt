@@ -75,6 +75,13 @@ In Google Cloud:
    above.
 6. Redeploy after changing the Google OAuth configuration.
 
+The Blueprint starts Next.js through its standalone server. If configuring the
+service manually instead of using the Blueprint, use:
+
+- Build command:
+  `npm ci && npm run build && cp -r public .next/standalone/public && mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static`
+- Start command: `node .next/standalone/server.js`
+
 Use at least the Render Starter plan. FFmpeg rendering is CPU- and
 memory-intensive; longer videos may require a larger instance.
 
