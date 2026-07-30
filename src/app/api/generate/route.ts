@@ -22,7 +22,7 @@ import {
   removeTemporaryFiles,
 } from "@/lib/supabase";
 
-export const maxDuration = 3600;
+export const maxDuration = 300;
 
 interface GenerateBody {
   audioPath: string;
