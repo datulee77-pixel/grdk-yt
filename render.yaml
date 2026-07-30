@@ -5,7 +5,7 @@ services:
     plan: starter
     buildCommand: npm ci && npm run build && cp -r public .next/standalone/public && mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static
     startCommand: node .next/standalone/server.js
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: "22"
