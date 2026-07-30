@@ -14,12 +14,14 @@ const nextConfig = {
   async rewrites() {
     if (!renderApiUrl) return [];
 
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${renderApiUrl}/api/:path*`,
-      },
-    ];
+    return {
+      beforeFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${renderApiUrl}/api/:path*`,
+        },
+      ],
+    };
   },
 };
 
