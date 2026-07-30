@@ -56,9 +56,12 @@ export async function createTemporaryUpload(storagePath: string) {
   return { path: data.path, token: data.token };
 }
 
-export async function downloadTemporaryFile(storagePath: string) {
+export async function downloadTemporaryFileStream(storagePath: string) {
   const supabase = await ensureTemporaryVideoBucket();
-  const { data, error } = await supabase.storage.from(bucket).download(storagePath);
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .download(storagePath)
+    .asStream();
   if (error || !data) throw error || new Error("Could not download the source file.");
   return data;
 }
@@ -93,6 +96,30 @@ export async function removeDueTemporaryVideos(now = Date.now()) {
     const paths = files.filter((file) => file.name).map((file) => `${prefix}/${file.name}`);
     if (paths.length) {
       const { error: removeError } = await supabase.storage.from(bucket).remove(paths);
+      if (removeError) throw removeError;
+    }
+  }
+}
+
+/** Remove generated videos that were never published within the retention window. */
+export async function removeExpiredTemporaryVideos(maxAgeMs = 24 * 60 * 60 * 1000) {
+  const supabase = await ensureTemporaryVideoBucket();
+  const expiresBefore = Date.now() - maxAgeMs;
+  const { data: userFolders, error } = await supabase.storage.from(bucket).list("", { limit: 1000 });
+  if (error) throw error;
+
+  for (const userFolder of userFolders) {
+    if (!userFolder.name) continue;
+    const activePath = `${userFolder.name}/active`;
+    const { data: files, error: listError } = await supabase.storage
+      .from(bucket)
+      .list(activePath, { limit: 1000 });
+    if (listError) throw listError;
+    const expiredPaths = files
+      .filter((file) => file.name && file.created_at && Date.parse(file.created_at) <= expiresBefore)
+      .map((file) => `${activePath}/${file.name}`);
+    if (expiredPaths.length) {
+      const { error: removeError } = await supabase.storage.from(bucket).remove(expiredPaths);
       if (removeError) throw removeError;
     }
   }

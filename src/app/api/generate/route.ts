@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import fsPromises from "fs/promises";
 import path from "path";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import { auth } from "@/lib/auth";
 import {
   ensureDirectories,
@@ -12,7 +14,7 @@ import {
 } from "@/lib/ffmpeg";
 import { generateFilename } from "@/lib/utils";
 import {
-  downloadTemporaryFile,
+  downloadTemporaryFileStream,
   ensureTemporaryVideoBucket,
   getTemporaryVideoBucket,
   getTemporaryVideoSignedUrl,
@@ -55,9 +57,9 @@ export async function POST(request: NextRequest) {
     }
 
     sourcePaths = [audioPath, imagePath];
-    const [audioBlob, imageBlob] = await Promise.all([
-      downloadTemporaryFile(audioPath),
-      downloadTemporaryFile(imagePath),
+    const [audioStream, imageStream] = await Promise.all([
+      downloadTemporaryFileStream(audioPath),
+      downloadTemporaryFileStream(imagePath),
     ]);
     audioTempPath = path.join(
       TEMP_DIR,
@@ -68,8 +70,14 @@ export async function POST(request: NextRequest) {
       generateFilename(path.extname(imagePath).slice(1))
     );
     await Promise.all([
-      fsPromises.writeFile(audioTempPath, Buffer.from(await audioBlob.arrayBuffer())),
-      fsPromises.writeFile(imageTempPath, Buffer.from(await imageBlob.arrayBuffer())),
+      pipeline(
+        Readable.fromWeb(audioStream as unknown as import("stream/web").ReadableStream),
+        fs.createWriteStream(audioTempPath)
+      ),
+      pipeline(
+        Readable.fromWeb(imageStream as unknown as import("stream/web").ReadableStream),
+        fs.createWriteStream(imageTempPath)
+      ),
     ]);
 
     const outputFilename = generateFilename("mp4");
@@ -79,10 +87,9 @@ export async function POST(request: NextRequest) {
 
     const storagePath = `${getUserStoragePrefix(session.user.email)}/active/${outputFilename}`;
     const supabase = await ensureTemporaryVideoBucket();
-    const videoBuffer = await fsPromises.readFile(outputPath);
     const { error: storageError } = await supabase.storage
       .from(getTemporaryVideoBucket())
-      .upload(storagePath, videoBuffer, {
+      .upload(storagePath, fs.createReadStream(outputPath), {
         contentType: "video/mp4",
         upsert: false,
       });

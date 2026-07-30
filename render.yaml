@@ -25,3 +25,18 @@ services:
         sync: false
       - key: SUPABASE_TEMP_VIDEOS_BUCKET
         value: temp-videos
+  - type: cron
+    name: studioflow-temp-cleanup
+    runtime: node
+    schedule: "0 * * * *"
+    buildCommand: npm ci
+    startCommand: npm run cleanup
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_TEMP_VIDEOS_BUCKET
+        value: temp-videos

@@ -9,7 +9,8 @@
     "lint": "next lint",
     "desktop": "electron .",
     "desktop:dev": "concurrently -k \"next dev\" \"wait-on http://127.0.0.1:3000 && electron .\"",
-    "desktop:package": "npm run build && electron-builder --win nsis portable"
+    "desktop:package": "npm run build && electron-builder --win nsis portable",
+    "cleanup": "node scripts/cleanup-temp-videos.mjs"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
